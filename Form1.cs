@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Data.SqlClient;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -8,7 +8,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using OES;
 using System.Diagnostics;
 
 namespace OES
@@ -22,37 +21,62 @@ namespace OES
 
         private void btnLogin_Click(object sender, EventArgs e)
         {
-            string email = txtEmail.Text;
+            string email = txtEmail.Text.Trim();
             string password = txtPassword.Text;
 
-            if (ValidateStudent(email, password)) // Check if the student exists in the database
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
             {
-                MessageBox.Show("Login successful!"); // Show a success message
-                ExamForm examForm = new ExamForm(); // Create an instance of the ExamForm
-                examForm.Show(); // Show the ExamForm
-                this.Hide(); // Hide the LoginForm
+                MessageBox.Show("Please enter both email and password.", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            int studentId;
+            if (ValidateStudent(email, password, out studentId))
+            {
+                MessageBox.Show("Login successful!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ExamForm examForm = new ExamForm(studentId);
+                examForm.Show();
+                this.Hide();
             }
             else
             {
-                MessageBox.Show("Invalid email or password.");
+                MessageBox.Show("Invalid email or password.", "Login Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
-        private bool ValidateStudent(string email, string password)
+        private bool ValidateStudent(string email, string password, out int studentId)
         {
-            string connectionString = "Data Source=SHERENI\\SQLEXPRESS;Initial Catalog=OnlineExamDB;Integrated Security=True"; // Connection string to the database
-            using (SqlConnection connection = new SqlConnection(connectionString))
+            studentId = -1;
+            try
             {
-                connection.Open();
-                string query = "SELECT StudentID FROM Students WHERE Email = @Email AND Password = @Password"; // SQL query to check if the student exists with the provided email and password
-                using (SqlCommand command = new SqlCommand(query, connection)) // Create a new SqlCommand object with the query and the connection
+                using (SqlConnection connection = DatabaseHelper.GetConnection())
                 {
-                    command.Parameters.AddWithValue("@Email", email); // Add parameters to the command to prevent SQL injection
-                    command.Parameters.AddWithValue("@Password", password); // Add parameters to the command to prevent SQL injection
-                    object result = command.ExecuteScalar(); // Execute the command and get the result
-                    return result != null; // If the result is not null, it means the student exists
+                    connection.Open();
+                    string query = "SELECT StudentID, Password FROM Students WHERE Email = @Email";
+                    using (SqlCommand command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@Email", email);
+                        using (SqlDataReader reader = command.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                string storedPassword = reader["Password"]?.ToString();
+                                int id = Convert.ToInt32(reader["StudentID"]);
+                                if (SecurityHelper.VerifyPassword(password, storedPassword))
+                                {
+                                    studentId = id;
+                                    return true;
+                                }
+                            }
+                        }
+                    }
                 }
             }
+            catch (Exception ex)
+            {
+                MessageBox.Show("An error occurred while validating student: " + ex.Message, "Database Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            return false;
         }
 
         private void pictureBox1_Click(object sender, EventArgs e)
@@ -77,20 +101,20 @@ namespace OES
 
         private void btnRegister_Click(object sender, EventArgs e)
         {
-            RegistrationForm registrationForm = new RegistrationForm(); // Create an instance of the RegistrationForm
-            registrationForm.Show(); // Show the RegistrationForm
+            RegistrationForm registrationForm = new RegistrationForm();
+            registrationForm.Show();
         }
 
         private void btnAddQuestion_Click(object sender, EventArgs e)
         {
-            AddQuestionsForm addQuestionForm = new AddQuestionsForm(); // Create an instance of the AddQuestionsForm
-            addQuestionForm.Show(); // Show the AddQuestionsForm
+            AddQuestionsForm addQuestionForm = new AddQuestionsForm();
+            addQuestionForm.Show();
         }
 
         private void button1_Click(object sender, EventArgs e)
         {
-            DatabaseManagementForm databaseManagementForm = new DatabaseManagementForm(); // Create an instance of the DatabaseManagementForm
-            databaseManagementForm.Show(); // Show the DatabaseManagementForm
+            DatabaseManagementForm databaseManagementForm = new DatabaseManagementForm();
+            databaseManagementForm.Show();
         }
 
         private void LoginForm_Load(object sender, EventArgs e)
@@ -99,6 +123,3 @@ namespace OES
         }
     }
 }
-
-
-           

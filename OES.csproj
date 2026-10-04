@@ -42,6 +42,7 @@
     <Reference Include="System.Deployment" />
     <Reference Include="System.Drawing" />
     <Reference Include="System.Net.Http" />
+    <Reference Include="System.Configuration" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
   </ItemGroup>
@@ -52,6 +53,8 @@
     <Compile Include="Add Questions Form.Designer.cs">
       <DependentUpon>Add Questions Form.cs</DependentUpon>
     </Compile>
+    <Compile Include="DatabaseHelper.cs" />
+    <Compile Include="SecurityHelper.cs" />
     <Compile Include="DatabaseManagementForm.cs">
       <SubType>Form</SubType>
     </Compile>
