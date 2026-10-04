@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -15,7 +15,7 @@ namespace OES
     {
         public AddQuestionsForm()
         {
-            InitializeComponent(); // Initialize the form components
+            InitializeComponent();
         }
 
         private void Add_Questions_Form_Load(object sender, EventArgs e)
@@ -35,55 +35,72 @@ namespace OES
 
         private void btnAddQuestion_Click(object sender, EventArgs e)
         {
+            string questionText = txtQuestion.Text.Trim();
+            string optionA = txtOptionA.Text.Trim();
+            string optionB = txtOptionB.Text.Trim();
+            string optionC = txtOptionC.Text.Trim();
+            string optionD = txtOptionD.Text.Trim();
+            string correctAnswer = cmbCorrectAnswer.SelectedItem != null ? cmbCorrectAnswer.SelectedItem.ToString() : "";
 
-
-            string questionText = txtQuestion.Text; // Get the question text from the textbox
-            string optionA = txtOptionA.Text;
-            string optionB = txtOptionB.Text;
-            string optionC = txtOptionC.Text;
-            string optionD = txtOptionD.Text; // Get the options from the textboxes
-            string correctAnswer = cmbCorrectAnswer.SelectedItem.ToString(); // Get the selected correct answer from the combobox
-
-            if (AddQuestion(questionText, optionA, optionB, optionC, optionD, correctAnswer)) // Call the method to add the question to the database
+            if (string.IsNullOrWhiteSpace(questionText) ||
+                string.IsNullOrWhiteSpace(optionA) ||
+                string.IsNullOrWhiteSpace(optionB) ||
+                string.IsNullOrWhiteSpace(optionC) ||
+                string.IsNullOrWhiteSpace(optionD) ||
+                string.IsNullOrWhiteSpace(correctAnswer))
             {
-                MessageBox.Show("Question added successfully!"); // Show a success message
-                ClearForm(); // Clear the form fields after adding the question
+                MessageBox.Show("Please fill in all question fields and select the correct answer.", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (AddQuestion(questionText, optionA, optionB, optionC, optionD, correctAnswer))
+            {
+                MessageBox.Show("Question added successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ClearForm();
             }
             else
             {
-                MessageBox.Show("Failed to add question."); // Show a failure message if the question could not be added
+                MessageBox.Show("Failed to add question.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-
         }
-        private bool AddQuestion(string questionText, string optionA, string optionB, string optionC, string optionD, string correctAnswer) // Method to add a question to the database
+
+        private bool AddQuestion(string questionText, string optionA, string optionB, string optionC, string optionD, string correctAnswer)
         {
-            string connectionString = "Data Source=SHERENI\\SQLEXPRESS;Initial Catalog=OnlineExamDB;Integrated Security=True"; // Connection string to the database
-            using (SqlConnection connection = new SqlConnection(connectionString)) // Create a new SqlConnection object
+            try
             {
-                connection.Open(); // Open the connection to the database
-                string query = "INSERT INTO Questions (QuestionText, OptionA, OptionB, OptionC, OptionD, CorrectAnswer) " +
-                               "VALUES (@QuestionText, @OptionA, @OptionB, @OptionC, @OptionD, @CorrectAnswer)"; // SQL query to insert a new question into the Questions table
-                using (SqlCommand command = new SqlCommand(query, connection)) // Create a new SqlCommand object with the query and the connection
+                using (SqlConnection connection = DatabaseHelper.GetConnection())
                 {
-                    command.Parameters.AddWithValue("@QuestionText", questionText); // Add parameters to the command to prevent SQL injection
-                    command.Parameters.AddWithValue("@OptionA", optionA);
-                    command.Parameters.AddWithValue("@OptionB", optionB);
-                    command.Parameters.AddWithValue("@OptionC", optionC);
-                    command.Parameters.AddWithValue("@OptionD", optionD); // Add the options as parameters
-                    command.Parameters.AddWithValue("@CorrectAnswer", correctAnswer); // Add the correct answer as a parameter
-                    int rowsAffected = command.ExecuteNonQuery(); // Execute the command and get the number of rows affected
-                    return rowsAffected > 0; // Return true if at least one row was affected, indicating that the question was added successfully
+                    connection.Open();
+                    string query = "INSERT INTO Questions (QuestionText, OptionA, OptionB, OptionC, OptionD, CorrectAnswer) " +
+                                   "VALUES (@QuestionText, @OptionA, @OptionB, @OptionC, @OptionD, @CorrectAnswer)";
+                    using (SqlCommand command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@QuestionText", questionText);
+                        command.Parameters.AddWithValue("@OptionA", optionA);
+                        command.Parameters.AddWithValue("@OptionB", optionB);
+                        command.Parameters.AddWithValue("@OptionC", optionC);
+                        command.Parameters.AddWithValue("@OptionD", optionD);
+                        command.Parameters.AddWithValue("@CorrectAnswer", correctAnswer);
+                        int rowsAffected = command.ExecuteNonQuery();
+                        return rowsAffected > 0;
+                    }
                 }
             }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error adding question: " + ex.Message, "Database Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
         }
+
         private void ClearForm()
         {
-            txtQuestion.Clear(); // Clear the question textbox
+            txtQuestion.Clear();
             txtOptionA.Clear();
             txtOptionB.Clear();
             txtOptionC.Clear();
-            txtOptionD.Clear(); // Clear the option textboxes
-            cmbCorrectAnswer.SelectedIndex = -1; // Clear the selected item in the combobox
+            txtOptionD.Clear();
+            cmbCorrectAnswer.SelectedIndex = -1;
         }
     }
 }

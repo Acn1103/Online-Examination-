@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -13,55 +13,124 @@ namespace OES
 {
     public partial class DatabaseManagementForm : Form
     {
-        private string connectionString = "Data Source=SHERENI\\SQLEXPRESS;Initial Catalog=OnlineExamDB;Integrated Security=True"; // Connection string to the database
         public DatabaseManagementForm()
         {
-            InitializeComponent(); // Initialize the form components
-            LoadStudents(); // Load the students into the DataGridView
-            LoadQuestions(); // Load the questions into the DataGridView
-            LoadResults(); // Load the results into the DataGridView
+            InitializeComponent();
+            LoadStudents();
+            LoadQuestions();
+            LoadResults();
         }
 
         private void LoadStudents()
         {
-            using (SqlConnection connection = new SqlConnection(connectionString)) // Create a new SqlConnection object
+            try
             {
-                connection.Open();
-                string query = "SELECT StudentID, FullName, Email, Password  FROM Students"; // SQL query to select all students
-                SqlDataAdapter adapter = new SqlDataAdapter(query, connection); // Create a SqlDataAdapter to execute the query and fill the DataTable
-                DataTable dataTable = new DataTable(); // Create a DataTable to hold the results
-                adapter.Fill(dataTable); // Fill the DataTable with the results of the query
-                dataGridViewStudents.DataSource = dataTable; // Set the DataGridView's data source to the DataTable
+                using (SqlConnection connection = DatabaseHelper.GetConnection())
+                {
+                    connection.Open();
+                    string query = "SELECT StudentID, FullName, Email FROM Students";
+                    SqlDataAdapter adapter = new SqlDataAdapter(query, connection);
+                    DataTable dataTable = new DataTable();
+                    adapter.Fill(dataTable);
+                    dataGridViewStudents.DataSource = dataTable;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error loading students data: " + ex.Message, "Database Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
         private void LoadQuestions()
         {
-            using (SqlConnection connection = new SqlConnection(connectionString)) // Create a new SqlConnection object
+            try
             {
-                connection.Open();
-                string query = "SELECT QuestionID, QuestionText, OptionA, OptionB, OptionC, OptionD, CorrectAnswer FROM Questions"; // SQL query to select all questions
-                SqlDataAdapter adapter = new SqlDataAdapter(query, connection); // Create a SqlDataAdapter to execute the query and fill the DataTable
-                DataTable dataTable = new DataTable(); // Create a DataTable to hold the results
-                adapter.Fill(dataTable); // Fill the DataTable with the results of the query
-                dataGridViewQuestions.DataSource = dataTable; // Set the DataGridView's data source to the DataTable
+                using (SqlConnection connection = DatabaseHelper.GetConnection())
+                {
+                    connection.Open();
+                    string query = "SELECT QuestionID, QuestionText, OptionA, OptionB, OptionC, OptionD, CorrectAnswer FROM Questions";
+                    SqlDataAdapter adapter = new SqlDataAdapter(query, connection);
+                    DataTable dataTable = new DataTable();
+                    adapter.Fill(dataTable);
+                    dataGridViewQuestions.DataSource = dataTable;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error loading questions data: " + ex.Message, "Database Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
         private void LoadResults()
         {
-            using (SqlConnection connection = new SqlConnection(connectionString)) // Create a new SqlConnection object
+            try
             {
-                connection.Open(); // Open the connection to the database
-                string query = "SELECT Results.ResultID, Students.FullName, Results.Score, Results.ExamDate " +
-                               "FROM Results INNER JOIN Students ON Results.StudentID = Students.StudentID"; // SQL query to select results with student names
-                SqlDataAdapter adapter = new SqlDataAdapter(query, connection); // Create a SqlDataAdapter to execute the query and fill the DataTable
-                DataTable dataTable = new DataTable(); // Create a DataTable to hold the results
-                adapter.Fill(dataTable); // Fill the DataTable with the results of the query
-                dataGridViewResults.DataSource = dataTable; // Set the DataGridView's data source to the DataTable
+                using (SqlConnection connection = DatabaseHelper.GetConnection())
+                {
+                    connection.Open();
+                    string query = "SELECT Results.ResultID, Students.FullName, Results.Score, Results.ExamDate " +
+                                   "FROM Results INNER JOIN Students ON Results.StudentID = Students.StudentID";
+                    SqlDataAdapter adapter = new SqlDataAdapter(query, connection);
+                    DataTable dataTable = new DataTable();
+                    adapter.Fill(dataTable);
+                    dataGridViewResults.DataSource = dataTable;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error loading results data: " + ex.Message, "Database Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
+        private void DeleteSelectedQuestion()
+        {
+            if (dataGridViewQuestions.SelectedRows.Count > 0)
+            {
+                var selectedRow = dataGridViewQuestions.SelectedRows[0];
+                if (selectedRow.Cells["QuestionID"].Value != null &&
+                    int.TryParse(selectedRow.Cells["QuestionID"].Value.ToString(), out int questionID))
+                {
+                    DialogResult dialogResult = MessageBox.Show("Are you sure you want to delete this question?", "Confirm Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                    if (dialogResult == DialogResult.Yes)
+                    {
+                        try
+                        {
+                            using (SqlConnection connection = DatabaseHelper.GetConnection())
+                            {
+                                connection.Open();
+                                string query = "DELETE FROM Questions WHERE QuestionID = @QuestionID";
+                                using (SqlCommand command = new SqlCommand(query, connection))
+                                {
+                                    command.Parameters.AddWithValue("@QuestionID", questionID);
+                                    int rowsAffected = command.ExecuteNonQuery();
+                                    if (rowsAffected > 0)
+                                    {
+                                        MessageBox.Show("Question deleted successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                        LoadQuestions();
+                                    }
+                                    else
+                                    {
+                                        MessageBox.Show("Failed to delete question.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show("Error deleting question: " + ex.Message, "Database Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }
+                    }
+                }
+                else
+                {
+                    MessageBox.Show("Invalid question selection.", "Selection Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
+            else
+            {
+                MessageBox.Show("Please select a question row to delete.", "Selection Required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
 
         private void Students_Click(object sender, EventArgs e)
         {
@@ -90,73 +159,17 @@ namespace OES
 
         private void btnDeleteQuestion_Click(object sender, EventArgs e)
         {
-            if (dataGridViewQuestions.SelectedRows.Count > 0) // Check if any row is selected in the DataGridView
-            {
-                int questionID = Convert.ToInt32(dataGridViewQuestions.SelectedRows[5].Cells["QuestionID"].Value); // Get the QuestionID of the selected row
+            DeleteSelectedQuestion();
+        }
 
-                using (SqlConnection connection = new SqlConnection(connectionString)) // Create a new SqlConnection object
-                {
-                    connection.Open();
-                    string query = "DELETE FROM Questions WHERE QuestionID = @QuestionID"; // SQL query to delete the question with the specified QuestionID
-                    using (SqlCommand command = new SqlCommand(query, connection)) // Create a SqlCommand to execute the query
-                    {
-                        command.Parameters.AddWithValue("@QuestionID", questionID); // Add the QuestionID as a parameter to the command to prevent SQL injection
-                        int rowsAffected = command.ExecuteNonQuery(); // Execute the command and get the number of rows affected
-                        if (rowsAffected > 0) // Check if any rows were affected (i.e., the question was deleted successfully)
-                        {
-                            MessageBox.Show("Question deleted successfully!");
-                            LoadQuestions(); // Refresh the DataGridView
-                        }
-                        else
-                        {
-                            MessageBox.Show("Failed to delete question.");
-                        }
-                    }
-                }
-            }
-
-            else
-            {
-                MessageBox.Show("Please select a question to delete.");
-            }
+        private void btnDeleteQuestion_Click_1(object sender, EventArgs e)
+        {
+            DeleteSelectedQuestion();
         }
 
         private void dataGridViewResults_CellContentClick(object sender, DataGridViewCellEventArgs e)
         {
 
-        }
-
-        private void btnDeleteQuestion_Click_1(object sender, EventArgs e)
-        {
-            if (dataGridViewQuestions.SelectedRows.Count > 0) // Check if any row is selected in the DataGridView
-            {
-                int questionID = Convert.ToInt32(dataGridViewQuestions.SelectedRows[0].Cells["QuestionID"].Value); // Get the QuestionID of the selected row
-
-                using (SqlConnection connection = new SqlConnection(connectionString)) // Create a new SqlConnection object
-                {
-                    connection.Open(); // Open the connection to the database
-                    string query = "DELETE FROM Questions WHERE QuestionID = @QuestionID"; // SQL query to delete the question with the specified QuestionID
-                    using (SqlCommand command = new SqlCommand(query, connection)) // Create a SqlCommand to execute the query
-                    {
-                        command.Parameters.AddWithValue("@QuestionID", questionID); // Add the QuestionID as a parameter to the command to prevent SQL injection
-                        int rowsAffected = command.ExecuteNonQuery(); // Execute the command and get the number of rows affected
-                        if (rowsAffected > 0)
-                        {
-                            MessageBox.Show("Question deleted successfully!");
-                            LoadQuestions(); // Refresh the DataGridView
-                        }
-                        else
-                        {
-                            MessageBox.Show("Failed to delete question.");
-                        }
-
-                    }
-                }
-            }
-            else
-            {
-                MessageBox.Show("Please select a question to delete.");
-            }
         }
     }
 }

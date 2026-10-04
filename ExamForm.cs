@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -13,33 +13,90 @@ namespace OES
 {
     public partial class ExamForm: Form
     {
-        private int score = 0; // Variable to keep track of the score
-        private int currentQuestionIndex = 0; // Index to keep track of the current question
-        private SqlConnection connection; // SqlConnection to connect to the database
-        private SqlDataReader reader; // SqlDataReader to read the questions from the database
-        public ExamForm()
+        public class QuestionItem
         {
-            InitializeComponent(); // Initialize the form components
-            connection = new SqlConnection("Data Source=SHERENI\\SQLEXPRESS;Initial Catalog=OnlineExamDB;Integrated Security=True");
-            LoadQuestion(); // Load the first question when the form is initialized
+            public int QuestionID { get; set; }
+            public string QuestionText { get; set; }
+            public string OptionA { get; set; }
+            public string OptionB { get; set; }
+            public string OptionC { get; set; }
+            public string OptionD { get; set; }
+            public string CorrectAnswer { get; set; }
         }
-        private void LoadQuestion()
-        {
-            connection.Open();
-            SqlCommand command = new SqlCommand("SELECT * FROM Questions", connection); // SQL command to select all questions
-            reader = command.ExecuteReader(); // Execute the command and get a SqlDataReader to read the results
 
-            if (reader.Read())
+        private int score = 0;
+        private int currentQuestionIndex = 0;
+        private int currentStudentId = 1;
+        private List<QuestionItem> questions = new List<QuestionItem>();
+
+        public ExamForm() : this(1)
+        {
+        }
+
+        public ExamForm(int studentId)
+        {
+            InitializeComponent();
+            currentStudentId = studentId;
+            LoadAllQuestions();
+            DisplayCurrentQuestion();
+        }
+
+        private void LoadAllQuestions()
+        {
+            questions.Clear();
+            try
             {
-                lblQuestion.Text = reader["QuestionText"].ToString(); // Load the first question
-                radioOptionA.Text = reader["OptionA"].ToString();
-                radioOptionB.Text = reader["OptionC"].ToString();
-                radioOptionC.Text = reader["OptionD"].ToString(); // Load the options for the question
+                using (SqlConnection connection = DatabaseHelper.GetConnection())
+                {
+                    connection.Open();
+                    string query = "SELECT QuestionID, QuestionText, OptionA, OptionB, OptionC, OptionD, CorrectAnswer FROM Questions";
+                    using (SqlCommand command = new SqlCommand(query, connection))
+                    using (SqlDataReader reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            questions.Add(new QuestionItem
+                            {
+                                QuestionID = Convert.ToInt32(reader["QuestionID"]),
+                                QuestionText = reader["QuestionText"]?.ToString() ?? "",
+                                OptionA = reader["OptionA"]?.ToString() ?? "",
+                                OptionB = reader["OptionB"]?.ToString() ?? "",
+                                OptionC = reader["OptionC"]?.ToString() ?? "",
+                                OptionD = reader["OptionD"]?.ToString() ?? "",
+                                CorrectAnswer = reader["CorrectAnswer"]?.ToString() ?? ""
+                            });
+                        }
+                    }
+                }
             }
-            else
+            catch (Exception ex)
             {
-                MessageBox.Show("No question found!");
+                MessageBox.Show("Error loading questions: " + ex.Message, "Database Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void DisplayCurrentQuestion()
+        {
+            if (questions.Count == 0)
+            {
+                MessageBox.Show("No questions found!", "Exam Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 this.Close();
+                return;
+            }
+
+            if (currentQuestionIndex < questions.Count)
+            {
+                var q = questions[currentQuestionIndex];
+                lblQuestion.Text = string.Format("Q{0}: {1}", currentQuestionIndex + 1, q.QuestionText);
+                radioOptionA.Text = q.OptionA;
+                radioOptionB.Text = q.OptionB;
+                radioOptionC.Text = q.OptionC;
+                radioOptionD.Text = q.OptionD;
+
+                radioOptionA.Checked = false;
+                radioOptionB.Checked = false;
+                radioOptionC.Checked = false;
+                radioOptionD.Checked = false;
             }
         }
 
@@ -50,54 +107,63 @@ namespace OES
 
         private void btnNext_Click(object sender, EventArgs e)
         {
-            if (reader["CorrectAnswer"].ToString()=="A" && radioOptionA.Checked || // Check if the selected answer matches the correct answer
-                reader["CorrectAnswer"].ToString()=="B" && radioOptionB.Checked ||
-                reader["CorrectAnswer"].ToString()=="C" && radioOptionC.Checked ||
-                reader["CorrectAnswer"].ToString()=="D" && radioOptionD.Checked)
+            if (currentQuestionIndex < questions.Count)
+            {
+                var q = questions[currentQuestionIndex];
+                string selectedAnswer = "";
+                if (radioOptionA.Checked) selectedAnswer = "A";
+                else if (radioOptionB.Checked) selectedAnswer = "B";
+                else if (radioOptionC.Checked) selectedAnswer = "C";
+                else if (radioOptionD.Checked) selectedAnswer = "D";
 
+                if (string.Equals(q.CorrectAnswer.Trim(), selectedAnswer, StringComparison.OrdinalIgnoreCase))
                 {
-                   score++;
+                    score++;
                 }
-            if(reader.Read())
-            {
-                lblQuestion.Text = reader["QuestionText"].ToString(); // Load the next question
-                radioOptionA.Text = reader["OptionA"].ToString();
-                radioOptionB.Text = reader["OptionB"].ToString();
-                radioOptionC.Text = reader["OptionC"].ToString();
-                radioOptionD.Text = reader["OptionD"].ToString();
-            }
-            else
-            {
-                reader.Close(); // Close the reader when there are no more questions
-                connection.Close(); // Close the connection
-                MessageBox.Show("Exam finished! Your score is: " + score); // Show the score
-                SaveResult(); // Save the result to the database
-                this.Close(); // Close the exam form
-            }
 
+                currentQuestionIndex++;
+
+                if (currentQuestionIndex < questions.Count)
+                {
+                    DisplayCurrentQuestion();
+                }
+                else
+                {
+                    MessageBox.Show("Exam finished! Your score is: " + score + " / " + questions.Count, "Exam Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    SaveResult();
+                    this.Close();
+                }
+            }
         }
+
         private void SaveResult()
         {
-            string connectionString = "Data Source=SHERENI\\SQLEXPRESS;Initial Catalog=OnlineExamDB;Integrated Security=True"; // Connection string to the database
-            using (SqlConnection connection = new SqlConnection(connectionString)) // Create a new connection object
+            try
             {
-                connection.Open();
-                string query = "INSERT INTO Results (StudentID, Score, ExamDate) VALUES (@StudentID, @Score, @ExamDate)";
-                using (SqlCommand command = new SqlCommand(query, connection)) // Create a command object with the query and connection
+                using (SqlConnection connection = DatabaseHelper.GetConnection())
                 {
-                    command.Parameters.AddWithValue("@StudentID", 1); // Replace with actual StudentID
-                    command.Parameters.AddWithValue("@Score", score);
-                    command.Parameters.AddWithValue("@ExamDate", DateTime.Now); // Current date and time
-                    int rowsAffected = command.ExecuteNonQuery(); // Execute the query
-                    if (rowsAffected > 0)
+                    connection.Open();
+                    string query = "INSERT INTO Results (StudentID, Score, ExamDate) VALUES (@StudentID, @Score, @ExamDate)";
+                    using (SqlCommand command = new SqlCommand(query, connection))
                     {
-                        MessageBox.Show("Result saved successfully!");
-                    }
-                    else
-                    {
-                        MessageBox.Show("Failed to save result.");
+                        command.Parameters.AddWithValue("@StudentID", currentStudentId);
+                        command.Parameters.AddWithValue("@Score", score);
+                        command.Parameters.AddWithValue("@ExamDate", DateTime.Now);
+                        int rowsAffected = command.ExecuteNonQuery();
+                        if (rowsAffected > 0)
+                        {
+                            MessageBox.Show("Result saved successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        }
+                        else
+                        {
+                            MessageBox.Show("Failed to save result.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }
                     }
                 }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error saving exam result: " + ex.Message, "Database Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }
